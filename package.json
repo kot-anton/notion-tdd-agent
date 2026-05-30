@@ -1,0 +1,72 @@
+{
+  "name": "notion-tdd-agent",
+  "version": "1.0.0",
+  "description": "MCP server that creates, updates, reviews, and manages Technical Design Documents directly in Notion",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "notion-tdd-agent": "./dist/cli.js"
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.js.map",
+    "!dist/__tests__/**",
+    ".env.example",
+    "mcp-config.example.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run typecheck && npm run build && npm test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@notionhq/client": "^2.3.0",
+    "dotenv": "^16.4.0",
+    "pino": "^9.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.5.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "notion",
+    "mcp",
+    "mcp-server",
+    "technical-design-document",
+    "tdd",
+    "claude",
+    "ai-agent",
+    "documentation",
+    "software-architecture"
+  ],
+  "author": {
+    "name": "Anton Ishchenko",
+    "email": "antonishchenko.qa@gmail.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kot-anton/notion-tdd-agent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kot-anton/notion-tdd-agent/issues"
+  },
+  "homepage": "https://github.com/kot-anton/notion-tdd-agent#readme",
+  "publishConfig": {
+    "access": "public"
+  }
+}

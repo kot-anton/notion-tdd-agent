@@ -1,0 +1,66 @@
+{
+  "_comment": "MCP server registration examples for Notion TDD Agent (notion-tdd-agent on npm).",
+
+  "claude_code_recommended": {
+    "_comment": "Recommended: install from npm via npx. Add to ~/.claude/settings.json or your project's .claude/settings.json.",
+    "mcpServers": {
+      "notion-tdd-agent": {
+        "command": "npx",
+        "args": ["notion-tdd-agent", "server"],
+        "env": {
+          "NOTION_TOKEN": "your_notion_token_here",
+          "NOTION_PARENT_PAGE_ID": "your_parent_page_id_here"
+        }
+      }
+    }
+  },
+
+  "claude_desktop": {
+    "_comment": "Claude Desktop — macOS: ~/Library/Application Support/Claude/claude_desktop_config.json  |  Windows: %APPDATA%\\Claude\\claude_desktop_config.json",
+    "mcpServers": {
+      "notion-tdd-agent": {
+        "command": "npx",
+        "args": ["notion-tdd-agent", "server"],
+        "env": {
+          "NOTION_TOKEN": "your_notion_token_here",
+          "NOTION_PARENT_PAGE_ID": "your_parent_page_id_here"
+        }
+      }
+    }
+  },
+
+  "local_development_no_build": {
+    "_comment": "Local development — cloned repo, no build step required. Requires tsx in devDependencies.",
+    "mcpServers": {
+      "notion-tdd-agent": {
+        "command": "npx",
+        "args": ["tsx", "src/index.ts"],
+        "env": {
+          "NOTION_TOKEN": "your_notion_token_here",
+          "NOTION_PARENT_PAGE_ID": "your_parent_page_id_here"
+        }
+      }
+    }
+  },
+
+  "local_development_built": {
+    "_comment": "Local development — cloned repo, after running: npm run build. Env from .env file.",
+    "mcpServers": {
+      "notion-tdd-agent": {
+        "command": "node",
+        "args": ["dist/index.js"],
+        "env": {}
+      }
+    }
+  },
+
+  "setup_steps": [
+    "1. Get your Notion token: https://app.notion.com/developers/connections → New connection → Access token",
+    "2. Create (or pick) a Notion page to hold your TDDs; share it with the integration via Page → Connections",
+    "3. Copy the 32-char page ID from the page URL",
+    "4. Copy the claude_code_recommended block above into ~/.claude/settings.json (global) or .claude/settings.json (project)",
+    "5. Replace the placeholder env values with your real token and page ID",
+    "6. Restart Claude Code or Claude Desktop",
+    "7. Verify: run  npx notion-tdd-agent doctor"
+  ]
+}
