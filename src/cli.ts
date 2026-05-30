@@ -278,9 +278,9 @@ async function collectAndSaveCredentials(
 
   // Step 3 — Visual generation
   console.log('\nStep 3 — Visual / Image Generation');
-  console.log('  Polished System Overview documents can include generated visuals.');
-  console.log('  Claude can always create Mermaid/SVG diagrams and design specs.');
-  console.log('  For real bitmap images (PNG/JPEG), a provider with an API key is required.');
+  console.log('  System Overview documents can include generated visuals.');
+  console.log('  Default (auto): Mermaid/SVG diagrams and image prompts — no API key required.');
+  console.log('  Add OPENAI_API_KEY to your .env to upgrade to OpenAI DALL-E 3 real bitmap images.');
   console.log('  You can always change this later in .env.\n');
 
   const enableVisuals = await promptVisible('  Enable visual generation? [Y/n]: ');
@@ -292,12 +292,12 @@ async function collectAndSaveCredentials(
 
   if (visualEnabled) {
     console.log('\n  Image provider options:');
-    console.log('    auto   — use best available provider (OpenAI if key set, else Claude diagrams)');
-    console.log('    openai — OpenAI DALL-E 3 (requires OPENAI_API_KEY)');
-    console.log('    claude — Claude diagrams/SVG/prompts only, no bitmap images');
+    console.log('    auto   — (default) Mermaid/SVG diagrams; upgrades to OpenAI DALL-E 3 if OPENAI_API_KEY is set');
+    console.log('    claude — Mermaid/SVG diagrams and image prompts only — no API key required');
+    console.log('    openai — OpenAI DALL-E 3 bitmap images (requires OPENAI_API_KEY, may incur charges)');
     console.log('    none   — minimal placeholders only\n');
 
-    const providerInput = await promptVisible('  IMAGE_PROVIDER [auto/openai/claude/none] (auto): ');
+    const providerInput = await promptVisible('  IMAGE_PROVIDER [auto/claude/openai/none] (auto): ');
     const providerChoice = providerInput.toLowerCase().trim();
     if (['auto', 'openai', 'claude', 'none'].includes(providerChoice)) {
       imageProvider = providerChoice;
@@ -306,16 +306,15 @@ async function collectAndSaveCredentials(
     }
 
     if (imageProvider === 'openai' || imageProvider === 'auto') {
-      const configureNow = await promptVisible('  Configure OpenAI API key now? [Y/n]: ');
-      if (!configureNow.toLowerCase().startsWith('n')) {
+      const configureNow = await promptVisible('  Configure OpenAI API key now? [y/N]: ');
+      if (configureNow.toLowerCase().startsWith('y')) {
         openAiKey = await promptSecret('  OPENAI_API_KEY (hidden): ');
         if (!openAiKey) {
-          console.log('  No key entered — skipping. Add OPENAI_API_KEY to .env later to enable real images.');
+          console.log('  No key entered — skipping. Add OPENAI_API_KEY to .env later to enable OpenAI images.');
         }
+      } else {
+        console.log('  Skipping OpenAI key — Claude diagrams will be used until a key is added.');
       }
-    } else if (imageProvider === 'claude') {
-      console.log('  Claude path selected: Mermaid/SVG diagrams and image prompts will be used.');
-      console.log('  To add real image generation later: change IMAGE_PROVIDER=openai and add OPENAI_API_KEY.');
     }
 
     const draftDefault = await promptVisible('  Default document quality mode? [polished/draft] (polished): ');
@@ -529,37 +528,35 @@ async function runDoctor(): Promise<void> {
   const bitmapAvailable = visualEnabled && qualityMode !== 'draft' && detectedProvider === 'openai';
 
   if (!visualEnabled) {
-    pass(`Visual generation disabled (VISUAL_GENERATION_ENABLED=false) — using Mermaid diagrams and placeholders`);
+    pass(`Visual generation disabled (VISUAL_GENERATION_ENABLED=false) — Mermaid diagrams and placeholders only`);
   } else if (qualityMode === 'draft') {
-    pass(`Visual generation enabled — document quality mode: draft (images skipped, Mermaid/placeholders only)`);
+    pass(`Visual generation enabled — quality mode: draft (Mermaid/placeholders only, images skipped)`);
   } else {
-    pass(`Visual generation enabled — document quality mode: ${qualityMode}`);
-    pass(`Image provider preference: ${imageProvider} → detected: ${detectedProvider}`);
+    pass(`Visual generation enabled — quality mode: ${qualityMode}`);
+    pass(`Image provider: ${imageProvider} → active: ${detectedProvider}`);
 
     if (bitmapAvailable) {
-      pass(`Real bitmap generation available via OpenAI (DALL-E 3)`);
-      console.log(`  → Real images will be generated with OpenAI`);
+      pass(`OpenAI DALL-E 3 bitmap generation active`);
+      console.log(`  → Real bitmap images will be generated via OpenAI`);
     } else if (detectedProvider === 'claude') {
-      warn(
-        `Claude-native bitmap generation not available in this environment`,
-        `Claude will create Mermaid/SVG diagrams and image prompts. For real images: set IMAGE_PROVIDER=openai and add OPENAI_API_KEY.`,
-      );
-      console.log(`  → Agent will use Mermaid/SVG diagrams and placeholder prompts`);
+      pass(`Claude visual path active — Mermaid/SVG diagrams and image prompts (no API key required)`);
+      console.log(`  → Diagrams and image prompts will be generated by Claude`);
+      if (imageProvider === 'auto') {
+        console.log(`  → To enable OpenAI bitmap images: add OPENAI_API_KEY to ${envPath}`);
+      }
     } else if (imageProvider === 'openai' && !hasOpenAiKey) {
       warn(
         `IMAGE_PROVIDER=openai but OPENAI_API_KEY is missing`,
-        `Add OPENAI_API_KEY to ${envPath} to enable real image generation.`,
+        `Add OPENAI_API_KEY to ${envPath}, or change IMAGE_PROVIDER=auto to use the default path.`,
       );
-      console.log(`  → Agent will use Mermaid/SVG diagrams and placeholder prompts`);
+      console.log(`  → Falling back to Mermaid/SVG diagrams and placeholder prompts`);
     } else {
       warn(
-        `Image provider "${imageProvider}" is not yet supported`,
-        `Supported values: auto, openai, claude, none. Falling back to Mermaid/SVG diagrams and placeholders.`,
+        `Image provider "${imageProvider}" is not supported`,
+        `Supported values: auto (default), claude, openai, none.`,
       );
       console.log(`  → Fallback: Mermaid/SVG diagrams and placeholder prompts`);
     }
-
-    pass(`Fallback available: Mermaid diagrams, SVG, and placeholder prompts (always active)`);
   }
 
   // Claude Code CLI
@@ -647,8 +644,8 @@ Manual registration:
 Visual generation (.env):
   VISUAL_GENERATION_ENABLED=true        # default — enables image generation for polished docs
   VISUAL_GENERATION_ENABLED=false       # faster drafts — Mermaid diagrams + placeholders only
-  IMAGE_PROVIDER=auto                   # auto (default) | openai | claude | none
-  OPENAI_API_KEY=sk-...                 # required for real image generation
+  IMAGE_PROVIDER=auto                   # auto (default) | claude | openai | none
+  OPENAI_API_KEY=sk-...                 # optional — required only for IMAGE_PROVIDER=openai or auto
   DOCUMENT_QUALITY_MODE=polished        # default — generate visuals when configured
   DOCUMENT_QUALITY_MODE=draft           # skip image generation, compact output
 `);

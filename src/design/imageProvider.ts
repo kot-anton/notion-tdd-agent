@@ -4,10 +4,11 @@
  * Reads VISUAL_GENERATION_ENABLED, IMAGE_PROVIDER, OPENAI_API_KEY,
  * and DOCUMENT_QUALITY_MODE from the environment.
  *
+ * Default provider: auto — provider-neutral; no API key required by default.
+ *
  * Provider resolution order (IMAGE_PROVIDER=auto):
- *   1. OpenAI (DALL-E 3) — if OPENAI_API_KEY is set
+ *   1. OpenAI (DALL-E 3) — only if OPENAI_API_KEY is set
  *   2. Claude path — SVG/Mermaid/HTML diagrams + rich prompts (no bitmap)
- *   3. none — minimal placeholders only
  */
 
 export type ImageProviderPreference =
@@ -85,20 +86,16 @@ export function getVisualConfig(): VisualConfig {
   if (enabled && qualityMode !== 'draft') {
     if (providerPreference === 'openai' && !hasOpenAiKey) {
       warningMessage =
-        'Visual generation is enabled with IMAGE_PROVIDER=openai, but OPENAI_API_KEY is missing. ' +
-        'Using Mermaid/SVG diagrams and placeholder prompts instead. ' +
-        'Add OPENAI_API_KEY to your .env to enable real image generation.';
-    } else if (providerPreference === 'claude') {
-      warningMessage =
-        'IMAGE_PROVIDER=claude: Claude can create Mermaid/SVG diagrams, image prompts, and design specs, ' +
-        'but does not produce bitmap images by itself. ' +
-        'Use IMAGE_PROVIDER=openai with OPENAI_API_KEY for real generated images.';
+        'IMAGE_PROVIDER=openai is set but OPENAI_API_KEY is missing. ' +
+        'Falling back to Mermaid/SVG diagrams and placeholder prompts. ' +
+        'Add OPENAI_API_KEY to your .env to enable OpenAI bitmap generation.';
     } else if (!['auto', 'openai', 'claude', 'none'].includes(providerPreference)) {
       warningMessage =
         `IMAGE_PROVIDER=${providerPreference} is not yet supported. ` +
         'Falling back to Mermaid/SVG diagrams and placeholders. ' +
-        'Supported values: auto, openai, claude, none.';
+        'Supported values: auto (default), claude, openai, none.';
     }
+    // No warning for claude (default) or auto-resolving to claude — this is the expected path.
   }
 
   return {

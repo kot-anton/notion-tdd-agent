@@ -1,6 +1,6 @@
 # Notion TDD Agent
 
-An MCP server that creates, updates, reviews, and manages **three document types** directly in Notion:
+An [MCP](https://modelcontextprotocol.io) server that creates, updates, reviews, and manages **three document types** directly in Notion. Works with any MCP-compatible client — Claude Code, Claude Desktop, Cursor, and others. Claude Code is the primary tested client.
 
 - **System Overview / Product Architecture Overview** — parent-level document describing what is being built, why it exists, the main product capabilities, high-level architecture, core modules, data ownership model, and roadmap.
 - **Feature Design** — mid-level document describing how a specific capability or workflow works: user flow, business rules, inputs/outputs, MVP scope, and dependencies. Sits between a System Overview and a TDD.
@@ -156,50 +156,63 @@ Before creating or finishing any document, the agent automatically checks for:
 
 ## Visual Generation
 
-Visual image generation is **enabled by default** for polished System Overview and partner-facing documents.
+Visual generation is **enabled by default**. The default mode is `auto` — no API key is required.
 
 ### How it works
 
-The agent uses a provider-agnostic visual strategy:
+The agent uses a provider-neutral visual strategy:
 
-- **`IMAGE_PROVIDER=auto` (default)** — uses OpenAI DALL-E 3 if `OPENAI_API_KEY` is set; otherwise falls back to the Claude path (Mermaid/SVG diagrams and image prompts)
-- **`IMAGE_PROVIDER=openai`** — explicitly requests OpenAI DALL-E 3 real bitmap images (requires `OPENAI_API_KEY`)
-- **`IMAGE_PROVIDER=claude`** — Claude-native path: Mermaid/SVG diagrams, image prompts, and design specs; no bitmap images
-- **`IMAGE_PROVIDER=none`** — minimal compact placeholder table only
+- **`IMAGE_PROVIDER=auto` (default)** — No API key required. Uses Mermaid/SVG diagrams and image prompts out of the box. Automatically upgrades to OpenAI DALL-E 3 real bitmap images if `OPENAI_API_KEY` is configured.
+- **`IMAGE_PROVIDER=claude`** — Mermaid/SVG diagrams and image prompts only. No external API key required.
+- **`IMAGE_PROVIDER=openai`** — explicitly requests OpenAI DALL-E 3 real bitmap images. Requires `OPENAI_API_KEY`. May incur OpenAI API charges.
+- **`IMAGE_PROVIDER=none`** — minimal compact placeholder table only, no diagram generation.
 
 Mermaid diagrams always work regardless of provider setting.
 
-When bitmap generation is not available, the agent falls back to a compact visual placeholder table and Mermaid diagrams — no document generation steps are skipped.
+When bitmap generation is not configured, the agent uses a compact visual placeholder table and Mermaid diagrams — no document generation steps are skipped.
 
 ### Configuration
 
 ```env
-# Fast draft — no image generation, diagrams + placeholders only
-VISUAL_GENERATION_ENABLED=false
-DOCUMENT_QUALITY_MODE=draft
-
-# Polished version — use best available provider (OpenAI if key set, else Claude diagrams)
+# Default first-run experience — no API key required
 VISUAL_GENERATION_ENABLED=true
 IMAGE_PROVIDER=auto
 DOCUMENT_QUALITY_MODE=polished
 
-# Explicitly use OpenAI DALL-E 3
-IMAGE_PROVIDER=openai
+# Upgrade to OpenAI bitmap images when a key is available (auto mode handles this automatically)
 OPENAI_API_KEY=sk-...
+
+# Fast draft — skip image generation, Mermaid diagrams + placeholders only
+VISUAL_GENERATION_ENABLED=false
+DOCUMENT_QUALITY_MODE=draft
 ```
 
 ### Supported providers
 
 | Provider | `IMAGE_PROVIDER` value | Requirements |
 |---|---|---|
-| Auto (recommended) | `auto` | OpenAI key if available; falls back to Claude path |
-| OpenAI DALL-E 3 | `openai` | `OPENAI_API_KEY` required |
-| Claude (diagrams/prompts) | `claude` | No API key required — Mermaid/SVG/prompts only |
-| None (placeholders) | `none` | Minimal compact table only |
+| Auto (default) | `auto` | No API key required — Mermaid/SVG/prompts; upgrades to OpenAI if key is set |
+| Claude | `claude` | No API key required — Mermaid/SVG/prompts only |
+| OpenAI DALL-E 3 | `openai` | `OPENAI_API_KEY` required — may incur charges |
+| None | `none` | Minimal compact placeholder table only |
+
+### Cost & Providers
+
+| Provider | API key required | Cost | What you get |
+|---|---|---|---|
+| `auto` (default, no key) | No | Free | Mermaid/SVG diagrams, image prompts, design specs |
+| `auto` (with key) | Yes (OpenAI) | OpenAI pricing | Mermaid diagrams + OpenAI bitmap images when key present |
+| `claude` | No | Free | Mermaid/SVG diagrams, image prompts, design specs |
+| `openai` | Yes (OpenAI) | OpenAI pricing | OpenAI DALL-E 3 bitmap images only |
+| `none` | No | Free | Compact placeholder table only |
+
+**First-run experience:** The default (`IMAGE_PROVIDER=auto`) requires no API key and incurs no charges. You can add `OPENAI_API_KEY` later to upgrade to real bitmap images without any other configuration change.
+
+**OpenAI charges:** `IMAGE_PROVIDER=openai` and `IMAGE_PROVIDER=auto` with a key present will call the OpenAI Images API (DALL-E 3), which charges per image generation. See [OpenAI pricing](https://openai.com/api/pricing) for current rates.
 
 ### System Overview visuals (up to 6)
 
-When generating a polished System Overview with bitmap generation available, the agent produces up to 6 visuals. The exact visuals depend on your product context — typical examples include:
+When generating a polished System Overview, the agent produces up to 6 visuals. In the default auto mode (no API key), these are Mermaid/SVG diagrams and image prompts; real bitmap images are generated only when a bitmap provider (e.g. OpenAI) is configured. The exact visuals depend on your product context — typical examples include:
 
 | Visual | Purpose |
 |---|---|
@@ -214,9 +227,11 @@ The agent selects the most relevant visuals based on your product description �
 
 ### Notion image insertion
 
-When real images are generated, the agent inserts them as Notion image blocks with captions.
+When OpenAI bitmap images are generated, the agent inserts them as Notion image blocks with captions.
 The image URL is a temporary CDN URL — download and host it if you need it long-term.
 If the Notion image API call fails, the agent saves the image locally and reports the path.
+
+With the default Claude provider, diagrams are inserted as Mermaid code blocks (Notion renders them natively).
 
 ---
 
@@ -412,9 +427,9 @@ Once the MCP server is registered, use natural language in Claude:
 | `GENERATED_FILES_DIR` | No | `generated` | Local directory for .mmd and .md exports |
 | `LOG_LEVEL` | No | `info` | `debug`, `info`, `warn`, `error` |
 | `VISUAL_GENERATION_ENABLED` | No | `true` | Set to `false` to skip image generation (drafts, CI) |
-| `IMAGE_PROVIDER` | No | `auto` | `auto` (default), `openai`, `claude`, `none` — see Visual Generation |
-| `OPENAI_API_KEY` | No | — | Required only when `IMAGE_PROVIDER=openai` or `auto` with a key present |
-| `DOCUMENT_QUALITY_MODE` | No | `polished` | `polished` generates images; `draft` uses diagrams + placeholders |
+| `IMAGE_PROVIDER` | No | `auto` | `auto` (default), `claude`, `openai`, `none` — see Visual Generation |
+| `OPENAI_API_KEY` | No | — | Optional. Required only when `IMAGE_PROVIDER=openai` or `auto` with a key present |
+| `DOCUMENT_QUALITY_MODE` | No | `polished` | `polished` enables visual planning and diagrams; real bitmap images also require a configured bitmap provider. `draft` skips all image generation — Mermaid diagrams + compact placeholders only |
 
 Pass these via the `env` block in your MCP config (recommended), or create a local `.env` file for development.
 
@@ -454,7 +469,7 @@ The agent also supports searching child pages of a parent when a full title is n
 
 - Mermaid diagrams are inserted as code blocks — Notion renders them natively
 - `tdd_render_diagram` requires `mmdc`: `npm install -g @mermaid-js/mermaid-cli`
-- Real bitmap image generation requires `OPENAI_API_KEY` — without it the agent generates prompts and compact placeholder tables instead
+- Real bitmap image generation requires `OPENAI_API_KEY` with `IMAGE_PROVIDER=openai` or `auto` — without a key, the agent generates Mermaid/SVG diagrams and image prompts instead
 - OpenAI CDN image URLs are temporary — download generated images if you need them long-term
 - Notion search is workspace-wide and may surface pages with similar titles
 - Child page search requires the integration to have explicit access to each child page
@@ -488,7 +503,7 @@ npm run typecheck        # type check without building
 npm test                 # run Vitest tests
 ```
 
-The `.claude/settings.json` in this repo registers the agent via `tsx` for local development — Claude Code will pick it up automatically.
+For local MCP config, see `mcp-config.example.json` — it contains ready-to-use registration snippets for Claude Code (user-scope), Claude Desktop, and both local dev modes (tsx / built). Copy the relevant block into your own `~/.claude/settings.json` or project `.claude/settings.json`.
 
 ---
 
