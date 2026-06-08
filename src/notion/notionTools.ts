@@ -420,6 +420,110 @@ export async function listChildPages(parentId: string): Promise<NotionSearchResu
   }
 }
 
+// ─── Comments ─────────────────────────────────────────────────────────────────
+
+export interface NotionComment {
+  id: string;
+  discussion_id: string;
+  author: string;
+  created_at: string;
+  text: string;
+}
+
+export interface NotionCommentThread {
+  discussion_id: string;
+  block_id: string;
+  comments: NotionComment[];
+}
+
+export async function getPageComments(
+  blockOrPageId: string
+): Promise<NotionCommentThread[]> {
+  const notion = getNotionClient();
+  const id = resolveNotionPageId(blockOrPageId);
+  const allComments: NotionComment[] = [];
+  let cursor: string | undefined;
+
+  try {
+    while (true) {
+      const res = await notion.comments.list({
+        block_id: id,
+        page_size: 100,
+        ...(cursor ? { start_cursor: cursor } : {}),
+      });
+
+      for (const c of res.results) {
+        const raw = c as Record<string, unknown>;
+        const richText = (raw.rich_text as Array<{ plain_text?: string }>) ?? [];
+        const text = richText.map((r) => r.plain_text ?? '').join('');
+        const createdBy = raw.created_by as Record<string, unknown> | undefined;
+        const author = (createdBy?.name as string) ?? 'Unknown';
+
+        allComments.push({
+          id: raw.id as string,
+          discussion_id: raw.discussion_id as string,
+          author,
+          created_at: raw.created_time as string,
+          text,
+        });
+      }
+
+      if (!res.has_more || !res.next_cursor) break;
+      cursor = res.next_cursor;
+    }
+
+    // Group by discussion_id to produce threads
+    const threadsMap = new Map<string, NotionCommentThread>();
+    for (const comment of allComments) {
+      if (!threadsMap.has(comment.discussion_id)) {
+        threadsMap.set(comment.discussion_id, {
+          discussion_id: comment.discussion_id,
+          block_id: id,
+          comments: [],
+        });
+      }
+      threadsMap.get(comment.discussion_id)!.comments.push(comment);
+    }
+
+    logger.info('Fetched page comments', { blockId: id, threads: threadsMap.size });
+    return Array.from(threadsMap.values());
+  } catch (err) {
+    throw new Error(notionErrorMessage(err));
+  }
+}
+
+export async function createNotionComment(params: {
+  discussion_id?: string;
+  block_id?: string;
+  text: string;
+}): Promise<{ id: string; discussion_id: string }> {
+  const notion = getNotionClient();
+  const richText = [{ type: 'text' as const, text: { content: params.text } }];
+
+  try {
+    let result: Record<string, unknown>;
+    if (params.discussion_id) {
+      result = (await notion.comments.create({
+        discussion_id: params.discussion_id,
+        rich_text: richText,
+      })) as Record<string, unknown>;
+    } else if (params.block_id) {
+      const id = resolveNotionPageId(params.block_id);
+      result = (await notion.comments.create({
+        parent: { page_id: id },
+        rich_text: richText,
+      })) as Record<string, unknown>;
+    } else {
+      throw new Error('Provide either discussion_id (to reply) or block_id/page_id (for a new thread)');
+    }
+
+    logger.info('Comment created', { id: result.id, discussionId: result.discussion_id });
+    return { id: result.id as string, discussion_id: result.discussion_id as string };
+  } catch (err) {
+    throw new Error(notionErrorMessage(err));
+  }
+}
+
 /**
  * Searches child pages of a parent by title (case-insensitive, partial match).
  * Tries exact match first, then partial. Returns null if nothing found.

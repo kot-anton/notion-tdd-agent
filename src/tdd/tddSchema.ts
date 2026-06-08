@@ -222,6 +222,24 @@ export const TddReplaceSectionInputSchema = z.object({
     ),
 });
 
+export const NotionGetCommentsInputSchema = z.object({
+  page_id: notionPageRefSchema.describe('Notion page ID or URL — returns all comment threads on this page'),
+  block_id: z
+    .string()
+    .optional()
+    .describe('Specific block ID to fetch inline comments for (overrides page_id)'),
+});
+
+export const NotionReplyCommentInputSchema = z.object({
+  discussion_id: z.string().min(1).describe('Discussion thread ID to reply to'),
+  text: z.string().min(1).describe('Reply text'),
+});
+
+export const NotionAddCommentInputSchema = z.object({
+  page_id: notionPageRefSchema.describe('Notion page ID or URL — add a new top-level comment on this page'),
+  text: z.string().min(1).describe('Comment text'),
+});
+
 // ─── System Overview Document Types ───────────────────────────────────────────
 
 export const DocumentTypeSchema = z.enum(['tdd', 'system_overview']);

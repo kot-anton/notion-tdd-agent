@@ -29,6 +29,9 @@ import {
   NotionCreatePageInputSchema,
   NotionUpdatePageInputSchema,
   NotionAppendBlocksInputSchema,
+  NotionGetCommentsInputSchema,
+  NotionReplyCommentInputSchema,
+  NotionAddCommentInputSchema,
   SystemOverviewCreateInputSchema,
   SystemOverviewCreateChildTddsInputSchema,
 } from './tdd/tddSchema.js';
@@ -40,6 +43,8 @@ import {
   createNotionPage,
   updateNotionPageTitle,
   appendBlocksToPage,
+  getPageComments,
+  createNotionComment,
 } from './notion/notionTools.js';
 
 // TDD tools
@@ -121,6 +126,15 @@ function buildImagePlaceholder(visualDesc: string, prompt: string, _provider?: s
     ``,
     `Suggested placement: Architecture section or Appendix.`,
   ].join('\n');
+}
+
+// Prepends a human-readable attribution header to a Notion comment.
+// Reads NOTION_AGENT_USER from env (e.g. "Anton Ishchenko").
+// Format: "Anton Ishchenko (via Notion Agent)\n\n[text]"
+function withAttribution(text: string): string {
+  const userName = process.env.NOTION_AGENT_USER?.trim();
+  const header = userName ? `${userName} (via Notion Agent)` : 'via Notion Agent';
+  return `${header}\n\n${text}`;
 }
 
 // Every Notion-touching tool is wrapped with this.
@@ -560,6 +574,73 @@ async function main() {
         const validated = NotionAppendBlocksInputSchema.parse(input);
         const result = await appendBlocksToPage(validated.page_id, validated.blocks as never[]);
         return ok(result);
+      } catch (e) {
+        return handleError(e);
+      }
+    })
+  );
+
+  // ── Comment Tools ────────────────────────────────────────────────────────────
+
+  server.tool(
+    'notion_get_comments',
+    [
+      'Fetches all comment threads on a Notion page or a specific block.',
+      'Returns grouped threads with author names, timestamps, and text.',
+      'Use when the user wants to read, review, or respond to Notion comments.',
+      'Pass block_id to fetch inline comments on a specific block instead of the whole page.',
+    ].join(' '),
+    NotionGetCommentsInputSchema.shape,
+    withAuth(async (input) => {
+      try {
+        const validated = NotionGetCommentsInputSchema.parse(input);
+        const targetId = validated.block_id ?? validated.page_id;
+        const threads = await getPageComments(targetId);
+        return ok({ total_threads: threads.length, threads });
+      } catch (e) {
+        return handleError(e);
+      }
+    })
+  );
+
+  server.tool(
+    'notion_reply_comment',
+    [
+      'Replies to an existing Notion comment thread using its discussion_id.',
+      'Use when the user wants to answer, respond to, or continue a comment thread.',
+      'Get the discussion_id from notion_get_comments first.',
+    ].join(' '),
+    NotionReplyCommentInputSchema.shape,
+    withAuth(async (input) => {
+      try {
+        const validated = NotionReplyCommentInputSchema.parse(input);
+        const result = await createNotionComment({
+          discussion_id: validated.discussion_id,
+          text: withAttribution(validated.text),
+        });
+        return ok({ success: true, comment_id: result.id, discussion_id: result.discussion_id });
+      } catch (e) {
+        return handleError(e);
+      }
+    })
+  );
+
+  server.tool(
+    'notion_add_comment',
+    [
+      'Creates a new top-level comment thread on a Notion page.',
+      'Use when the user wants to leave a new comment (not a reply to an existing thread).',
+      'To reply to an existing thread, use notion_reply_comment with a discussion_id instead.',
+    ].join(' '),
+    NotionAddCommentInputSchema.shape,
+    withAuth(async (input) => {
+      try {
+        const validated = NotionAddCommentInputSchema.parse(input);
+        const result = await createNotionComment({
+          block_id: validated.page_id,
+          text: withAttribution(validated.text),
+        });
+        return ok({ success: true, comment_id: result.id, discussion_id: result.discussion_id });
       } catch (e) {
         return handleError(e);
       }

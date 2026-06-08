@@ -889,6 +889,9 @@ If any item is "No", fix it before returning the Notion URL.
 | `notion_create_page` | Create raw page (prefer document-specific tools for TDDs and overviews) |
 | `notion_update_page` | Update page title |
 | `notion_append_blocks` | Append raw Notion blocks to a page |
+| `notion_get_comments` | Fetch all comment threads on a page or specific block |
+| `notion_reply_comment` | Reply to an existing comment thread by discussion_id |
+| `notion_add_comment` | Create a new top-level comment thread on a page |
 
 ### Design Page Tools
 | Tool | Use |
@@ -934,6 +937,39 @@ If any item is "No", fix it before returning the Notion URL.
 | `IMAGE_PROVIDER` | No | Provider: `auto` (default), `openai`, `claude`, `none`. See Image / Visual Generation section. |
 | `OPENAI_API_KEY` | No | Required when `IMAGE_PROVIDER=openai` or `auto` and you want real bitmap images. |
 | `DOCUMENT_QUALITY_MODE` | No | `polished` (default) or `draft`. Draft mode skips all image generation. |
+| `NOTION_AGENT_USER` | No | Your full name (e.g. `Anton Ishchenko`). Prepended to every comment the agent posts: `Anton Ishchenko (via Notion Agent)`. Falls back to `via Notion Agent` if not set. |
+
+---
+
+## Comment Formatting Rules
+
+When writing a reply or comment on behalf of the user:
+
+1. **Attribution header** — Every comment starts with `[User Name] (via Notion Agent)` on its own line, followed by a blank line.
+2. **Short sentences** — Keep answers to 2–4 sentences per point. No walls of text.
+3. **Plain language** — Write as a person would, not as a technical document.
+4. **Numbered lists** — Use `1)`, `2)`, `3)` for multi-point answers. No bullet dashes.
+5. **No em dashes** — Never use `—`. Use a comma, colon, or a new sentence instead.
+6. **Direct answers** — Answer the question being asked. Skip preamble like "Great question" or "As mentioned above".
+7. **One blank line** between the attribution header and the content. No extra blank lines inside the reply.
+
+Example of a well-formatted reply:
+
+```
+Anton Ishchenko (via Notion Agent)
+
+Re: Claude API costs — Claude (Anthropic) charges per token for each AI conversation.
+The question is who absorbs this cost: Cleverpal bundles it into the subscription price.
+Heavy users would be covered by a fair-use policy.
+```
+
+Example of a poorly-formatted reply (do not do this):
+
+```
+Re: #4 — Claude (Anthropic) charges per token for every AI conversation the product
+processes. The question is: does Cleverpal pay these inference costs and bundle them
+into the subscription price, or does each user bring their own Anthropic API key?
+```
 
 ---
 
